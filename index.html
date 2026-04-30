@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Codexa — Gestão de Portfólio</title>
+  <meta name="description" content="Painel administrativo para cadastrar e gerenciar projetos do portfólio da Codexa." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="shortcut icon" href="./assets/favicon.png" type="image/x-icon">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Menu administrativo">
+      <a class="brand" href="#top" aria-label="Codexa Portfolio Admin">
+        <img src="assets/codexa_logo_200px.svg" alt="Codexa" />
+      </a>
+
+      <div class="sidebar-card api-status-card">
+        <span class="status-dot is-checking" id="apiStatusDot"></span>
+        <div>
+          <strong id="apiStatusTitle">API não testada</strong>
+          <small id="apiStatusDetail">Configure e teste a conexão</small>
+        </div>
+      </div>
+
+      <section class="api-config-card" aria-label="Configuração da API">
+        <label>
+          <span>Base da API</span>
+          <input id="apiBaseUrl" type="url" placeholder="http://localhost:3333" autocomplete="off" />
+        </label>
+        <label>
+          <span>Admin Token</span>
+          <input id="adminToken" type="password" placeholder="codexa-dev-token" autocomplete="off" />
+        </label>
+        <div class="api-config-actions">
+          <button class="ghost-button compact" id="saveConfigBtn" type="button">Salvar</button>
+          <button class="ghost-button compact" id="healthBtn" type="button">Testar</button>
+        </div>
+      </section>
+
+      <nav class="side-nav">
+        <a href="#dashboard" class="active">Dashboard</a>
+        <a href="#formulario">Novo projeto</a>
+        <a href="#lista">Projetos</a>
+        <a href="#preview">Preview</a>
+      </nav>
+
+    </aside>
+
+    <main class="main" id="top">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow"><span></span> Painel Codexa</p>
+          <h1>Gestão de portfólio</h1>
+          <p>Cadastre, edite, ordene e publique os projetos exibidos na seção de portfólio.</p>
+        </div>
+
+        <div class="topbar-actions">
+          <button class="ghost-button" id="refreshBtn" type="button">Recarregar API</button>
+          <button class="ghost-button" id="exportBtn" type="button">Exportar JSON</button>
+          <label class="file-button">
+            Importar JSON
+            <input id="importInput" type="file" accept="application/json" />
+          </label>
+          <button class="primary-button" id="newProjectBtn" type="button">+ Novo projeto</button>
+        </div>
+      </header>
+
+      <section class="stats-grid" id="dashboard" aria-label="Resumo do portfólio">
+        <article class="stat-card">
+          <small>Total</small>
+          <strong id="totalProjects">0</strong>
+          <span>Projetos cadastrados</span>
+        </article>
+        <article class="stat-card">
+          <small>Publicado</small>
+          <strong id="publishedProjects">0</strong>
+          <span>Visíveis no site</span>
+        </article>
+        <article class="stat-card">
+          <small>Destaques</small>
+          <strong id="featuredProjects">0</strong>
+          <span>Cases em evidência</span>
+        </article>
+        <article class="stat-card">
+          <small>Rascunhos</small>
+          <strong id="draftProjects">0</strong>
+          <span>Aguardando publicação</span>
+        </article>
+      </section>
+
+      <section class="panel form-panel" id="formulario">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow"><span></span> Contrato PortfolioItem</p>
+            <h2 id="formTitle">Cadastrar projeto</h2>
+          </div>
+          <button class="ghost-button" id="clearFormBtn" type="button">Limpar</button>
+        </div>
+
+        <form id="portfolioForm" novalidate>
+          <input type="hidden" id="projectId" />
+
+          <div class="form-grid">
+            <label class="field">
+              <span>Título *</span>
+              <input id="title" name="title" type="text" maxlength="80" placeholder="Ex: Advocacia Rodrigues" required />
+              <small data-error-for="title"></small>
+            </label>
+
+            <label class="field">
+              <span>Slug *</span>
+              <input id="slug" name="slug" type="text" maxlength="100" placeholder="advocacia-rodrigues" required />
+              <small data-error-for="slug"></small>
+            </label>
+
+            <label class="field field-full">
+              <span>Descrição curta *</span>
+              <textarea id="shortDescription" name="shortDescription" maxlength="220" rows="3" placeholder="Resumo que aparece no card mobile e no painel." required></textarea>
+              <small><b id="descriptionCount">0</b>/220 caracteres</small>
+            </label>
+
+            <label class="field">
+              <span>URL do projeto *</span>
+              <input id="projectUrl" name="projectUrl" type="url" placeholder="https://projeto.vercel.app/" required />
+              <small data-error-for="projectUrl"></small>
+            </label>
+
+            <label class="field">
+              <span>Categoria</span>
+              <input id="category" name="category" type="text" maxlength="60" placeholder="Ex: Advocacia" list="categorySuggestions" />
+              <datalist id="categorySuggestions"></datalist>
+            </label>
+
+            <label class="field upload-field">
+              <span>Imagem desktop *</span>
+              <input id="desktopImageFile" name="desktopImageFile" type="file" accept="image/*" />
+              <div class="image-upload-preview" id="desktopImagePreview">
+                <strong>Nenhuma imagem selecionada</strong>
+                <small>PNG, JPG, WEBP ou SVG. A imagem será enviada para a API.</small>
+              </div>
+              <small data-error-for="desktopImageUrl"></small>
+            </label>
+
+            <label class="field upload-field">
+              <span>Imagem mobile *</span>
+              <input id="mobileImageFile" name="mobileImageFile" type="file" accept="image/*" />
+              <div class="image-upload-preview" id="mobileImagePreview">
+                <strong>Nenhuma imagem selecionada</strong>
+                <small>PNG, JPG, WEBP ou SVG. A imagem será enviada para a API.</small>
+              </div>
+              <small data-error-for="mobileImageUrl"></small>
+            </label>
+
+            <label class="field">
+              <span>Texto alternativo *</span>
+              <input id="altText" name="altText" type="text" maxlength="120" placeholder="Projeto Advocacia Rodrigues" required />
+              <small data-error-for="altText"></small>
+            </label>
+
+            <label class="field">
+              <span>Tags</span>
+              <input id="tags" name="tags" type="text" placeholder="Landing Page, Advocacia, Institucional" />
+              <small>Separe por vírgula</small>
+            </label>
+
+            <label class="field small-field">
+              <span>Ordem *</span>
+              <input id="order" name="order" type="number" min="1" step="1" required />
+              <small data-error-for="order"></small>
+            </label>
+
+            <label class="field small-field">
+              <span>Status *</span>
+              <select id="status" name="status" required>
+                <option value="published">Publicado</option>
+                <option value="draft">Rascunho</option>
+                <option value="archived">Arquivado</option>
+              </select>
+            </label>
+
+            <label class="toggle-field">
+              <input id="featured" name="featured" type="checkbox" checked />
+              <span></span>
+              <strong>Projeto em destaque</strong>
+            </label>
+          </div>
+
+          <div class="form-actions">
+            <button class="primary-button" type="submit" id="submitBtn">Salvar projeto</button>
+            <button class="ghost-button" type="button" id="cancelEditBtn" hidden>Cancelar edição</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel" id="lista">
+        <div class="panel-heading list-heading">
+          <div>
+            <p class="eyebrow"><span></span> Registros</p>
+            <h2>Projetos cadastrados</h2>
+          </div>
+
+          <div class="filters">
+            <label>
+              <span>Buscar</span>
+              <input id="searchInput" type="search" placeholder="Nome, slug, tag..." />
+            </label>
+            <label>
+              <span>Status</span>
+              <select id="statusFilter">
+                <option value="all">Todos</option>
+                <option value="published">Publicado</option>
+                <option value="draft">Rascunho</option>
+                <option value="archived">Arquivado</option>
+              </select>
+            </label>
+            <label>
+              <span>Categoria</span>
+              <select id="categoryFilter">
+                <option value="all">Todas</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Ordem</th>
+                <th>Projeto</th>
+                <th>Categoria</th>
+                <th>Status</th>
+                <th>Destaque</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="projectsTableBody"></tbody>
+          </table>
+        </div>
+
+        <div class="empty-state" id="emptyState" hidden>
+          <div>⌁</div>
+          <strong>Nenhum projeto encontrado</strong>
+          <p>Cadastre o primeiro item de portfólio para começar.</p>
+        </div>
+      </section>
+
+      <section class="panel preview-panel" id="preview">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow"><span></span> Preview do site</p>
+            <h2>Como os publicados aparecem</h2>
+          </div>
+          <span class="preview-counter"><b id="previewCount">0</b> cases</span>
+        </div>
+
+        <div class="portfolio-preview" id="portfolioPreview" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <template id="projectRowTemplate">
+    <tr>
+      <td class="order-cell"></td>
+      <td class="project-cell"></td>
+      <td class="category-cell"></td>
+      <td class="status-cell"></td>
+      <td class="featured-cell"></td>
+      <td class="actions-cell"></td>
+    </tr>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
