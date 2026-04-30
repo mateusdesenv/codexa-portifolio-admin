@@ -7,7 +7,8 @@
   <meta name="description" content="Painel administrativo para cadastrar e gerenciar projetos do portfólio da Codexa." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400..700,0..1,-50..200" rel="stylesheet">
   <link rel="shortcut icon" href="./assets/favicon.png" type="image/x-icon">
   <link rel="stylesheet" href="style.css" />
 </head>
@@ -36,16 +37,17 @@
           <input id="adminToken" type="password" placeholder="codexa-dev-token" autocomplete="off" />
         </label>
         <div class="api-config-actions">
-          <button class="ghost-button compact" id="saveConfigBtn" type="button">Salvar</button>
-          <button class="ghost-button compact" id="healthBtn" type="button">Testar</button>
+          <button class="ghost-button compact" id="saveConfigBtn" type="button"><span class="material-symbols-rounded" aria-hidden="true">save</span>Salvar</button>
+          <button class="ghost-button compact" id="healthBtn" type="button"><span class="material-symbols-rounded" aria-hidden="true">monitor_heart</span>Testar</button>
         </div>
       </section>
 
       <nav class="side-nav">
-        <a href="#dashboard" class="active">Dashboard</a>
-        <a href="#formulario">Novo projeto</a>
-        <a href="#lista">Projetos</a>
-        <a href="#preview">Preview</a>
+        <a href="#dashboard" class="active"><span class="material-symbols-rounded" aria-hidden="true">dashboard</span>Dashboard</a>
+        <a href="#formulario"><span class="material-symbols-rounded" aria-hidden="true">add_circle</span>Novo projeto</a>
+        <a href="#taxonomia"><span class="material-symbols-rounded" aria-hidden="true">category</span>Categorias e tags</a>
+        <a href="#lista"><span class="material-symbols-rounded" aria-hidden="true">view_list</span>Projetos</a>
+        <a href="#preview"><span class="material-symbols-rounded" aria-hidden="true">visibility</span>Preview</a>
       </nav>
 
     </aside>
@@ -59,13 +61,14 @@
         </div>
 
         <div class="topbar-actions">
-          <button class="ghost-button" id="refreshBtn" type="button">Recarregar API</button>
-          <button class="ghost-button" id="exportBtn" type="button">Exportar JSON</button>
+          <button class="ghost-button" id="refreshBtn" type="button"><span class="material-symbols-rounded" aria-hidden="true">refresh</span>Recarregar API</button>
+          <button class="ghost-button" id="exportBtn" type="button"><span class="material-symbols-rounded" aria-hidden="true">download</span>Exportar JSON</button>
           <label class="file-button">
+            <span class="material-symbols-rounded" aria-hidden="true">upload_file</span>
             Importar JSON
             <input id="importInput" type="file" accept="application/json" />
           </label>
-          <button class="primary-button" id="newProjectBtn" type="button">+ Novo projeto</button>
+          <button class="primary-button" id="newProjectBtn" type="button"><span class="material-symbols-rounded" aria-hidden="true">add</span>Novo projeto</button>
         </div>
       </header>
 
@@ -98,7 +101,7 @@
             <p class="eyebrow"><span></span> Contrato PortfolioItem</p>
             <h2 id="formTitle">Cadastrar projeto</h2>
           </div>
-          <button class="ghost-button" id="clearFormBtn" type="button">Limpar</button>
+          <button class="ghost-button" id="clearFormBtn" type="button"><span class="material-symbols-rounded" aria-hidden="true">backspace</span>Limpar</button>
         </div>
 
         <form id="portfolioForm" novalidate>
@@ -131,8 +134,10 @@
 
             <label class="field">
               <span>Categoria</span>
-              <input id="category" name="category" type="text" maxlength="60" placeholder="Ex: Advocacia" list="categorySuggestions" />
-              <datalist id="categorySuggestions"></datalist>
+              <select id="category" name="category">
+                <option value="Sem categoria">Sem categoria</option>
+              </select>
+              <small>Cadastre novas categorias na tela de taxonomia.</small>
             </label>
 
             <label class="field upload-field">
@@ -161,10 +166,11 @@
               <small data-error-for="altText"></small>
             </label>
 
-            <label class="field">
+            <label class="field field-full">
               <span>Tags</span>
               <input id="tags" name="tags" type="text" placeholder="Landing Page, Advocacia, Institucional" />
-              <small>Separe por vírgula</small>
+              <small>Separe por vírgula ou clique nas tags cadastradas abaixo.</small>
+              <div class="tag-picker" id="tagPicker" aria-label="Tags cadastradas"></div>
             </label>
 
             <label class="field small-field">
@@ -190,10 +196,77 @@
           </div>
 
           <div class="form-actions">
-            <button class="primary-button" type="submit" id="submitBtn">Salvar projeto</button>
-            <button class="ghost-button" type="button" id="cancelEditBtn" hidden>Cancelar edição</button>
+            <button class="primary-button" type="submit" id="submitBtn"><span class="material-symbols-rounded" aria-hidden="true">check_circle</span>Salvar projeto</button>
+            <button class="ghost-button" type="button" id="cancelEditBtn" hidden><span class="material-symbols-rounded" aria-hidden="true">close</span>Cancelar edição</button>
           </div>
         </form>
+      </section>
+
+
+      <section class="panel taxonomy-panel" id="taxonomia">
+        <div class="panel-heading taxonomy-heading">
+          <div>
+            <p class="eyebrow"><span></span> Organização</p>
+            <h2>Categorias e tags</h2>
+            <p class="panel-subtitle">Cadastre opções para padronizar os projetos. As categorias e tags ficam salvas neste navegador e aparecem no formulário de projeto.</p>
+          </div>
+        </div>
+
+        <div class="taxonomy-grid">
+          <article class="taxonomy-card">
+            <div class="taxonomy-card-header">
+              <div>
+                <span class="material-symbols-rounded" aria-hidden="true">category</span>
+                <strong>Categorias</strong>
+              </div>
+              <span class="preview-counter"><b id="categoryCount">0</b> itens</span>
+            </div>
+
+            <form class="taxonomy-form" id="categoryManagerForm">
+              <input type="hidden" id="categoryEditId" />
+              <label class="field">
+                <span>Nome da categoria</span>
+                <input id="categoryName" type="text" maxlength="60" placeholder="Ex: Advocacia" />
+                <small data-error-for="categoryName"></small>
+              </label>
+              <label class="field">
+                <span>Descrição interna</span>
+                <input id="categoryDescription" type="text" maxlength="120" placeholder="Ex: Sites para escritórios jurídicos" />
+              </label>
+              <div class="taxonomy-actions">
+                <button class="primary-button" type="submit" id="saveCategoryBtn"><span class="material-symbols-rounded" aria-hidden="true">check</span>Salvar categoria</button>
+                <button class="ghost-button" type="button" id="cancelCategoryEditBtn" hidden><span class="material-symbols-rounded" aria-hidden="true">close</span>Cancelar</button>
+              </div>
+            </form>
+
+            <div class="taxonomy-list" id="categoryList" aria-live="polite"></div>
+          </article>
+
+          <article class="taxonomy-card">
+            <div class="taxonomy-card-header">
+              <div>
+                <span class="material-symbols-rounded" aria-hidden="true">sell</span>
+                <strong>Tags</strong>
+              </div>
+              <span class="preview-counter"><b id="tagCount">0</b> itens</span>
+            </div>
+
+            <form class="taxonomy-form compact-taxonomy-form" id="tagManagerForm">
+              <input type="hidden" id="tagEditId" />
+              <label class="field">
+                <span>Nome da tag</span>
+                <input id="tagName" type="text" maxlength="40" placeholder="Ex: Landing Page" />
+                <small data-error-for="tagName"></small>
+              </label>
+              <div class="taxonomy-actions">
+                <button class="primary-button" type="submit" id="saveTagBtn"><span class="material-symbols-rounded" aria-hidden="true">check</span>Salvar tag</button>
+                <button class="ghost-button" type="button" id="cancelTagEditBtn" hidden><span class="material-symbols-rounded" aria-hidden="true">close</span>Cancelar</button>
+              </div>
+            </form>
+
+            <div class="taxonomy-list tag-list" id="tagList" aria-live="polite"></div>
+          </article>
+        </div>
       </section>
 
       <section class="panel" id="lista">
@@ -264,6 +337,21 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="image-lightbox" id="imageLightbox" role="dialog" aria-modal="true" aria-labelledby="imageLightboxTitle" hidden>
+    <div class="image-lightbox-backdrop" data-action="close-images"></div>
+    <section class="image-lightbox-card" aria-label="Visualização das imagens do projeto">
+      <header class="image-lightbox-header">
+        <div>
+          <p class="eyebrow"><span></span> Imagens cadastradas</p>
+          <h2 id="imageLightboxTitle">Projeto</h2>
+          <small id="imageLightboxSubtitle">Desktop e mobile</small>
+        </div>
+        <button class="icon-button" type="button" data-action="close-images" aria-label="Fechar visualização"><span class="material-symbols-rounded" aria-hidden="true">close</span>Fechar</button>
+      </header>
+      <div class="image-lightbox-grid" id="imageLightboxGrid"></div>
+    </section>
+  </div>
 
   <template id="projectRowTemplate">
     <tr>

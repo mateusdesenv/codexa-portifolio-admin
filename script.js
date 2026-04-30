@@ -1,4 +1,5 @@
 const API_CONFIG_KEY = "codexa_portfolio_api_config_v1";
+const TAXONOMY_STORAGE_KEY = "codexa_portfolio_taxonomy_v1";
 
 const DEFAULT_API_CONFIG = {
   baseUrl: "http://localhost:3333",
@@ -8,6 +9,7 @@ const DEFAULT_API_CONFIG = {
 const state = {
   items: [],
   publicItems: [],
+  taxonomy: loadTaxonomy(),
   filters: {
     search: "",
     status: "all",
@@ -45,7 +47,22 @@ const els = {
   searchInput: document.querySelector("#searchInput"),
   statusFilter: document.querySelector("#statusFilter"),
   categoryFilter: document.querySelector("#categoryFilter"),
-  categorySuggestions: document.querySelector("#categorySuggestions"),
+  tagPicker: document.querySelector("#tagPicker"),
+  categoryManagerForm: document.querySelector("#categoryManagerForm"),
+  categoryEditId: document.querySelector("#categoryEditId"),
+  categoryName: document.querySelector("#categoryName"),
+  categoryDescription: document.querySelector("#categoryDescription"),
+  saveCategoryBtn: document.querySelector("#saveCategoryBtn"),
+  cancelCategoryEditBtn: document.querySelector("#cancelCategoryEditBtn"),
+  categoryList: document.querySelector("#categoryList"),
+  categoryCount: document.querySelector("#categoryCount"),
+  tagManagerForm: document.querySelector("#tagManagerForm"),
+  tagEditId: document.querySelector("#tagEditId"),
+  tagName: document.querySelector("#tagName"),
+  saveTagBtn: document.querySelector("#saveTagBtn"),
+  cancelTagEditBtn: document.querySelector("#cancelTagEditBtn"),
+  tagList: document.querySelector("#tagList"),
+  tagCount: document.querySelector("#tagCount"),
   tableBody: document.querySelector("#projectsTableBody"),
   emptyState: document.querySelector("#emptyState"),
   preview: document.querySelector("#portfolioPreview"),
@@ -62,7 +79,11 @@ const els = {
   healthBtn: document.querySelector("#healthBtn"),
   apiStatusDot: document.querySelector("#apiStatusDot"),
   apiStatusTitle: document.querySelector("#apiStatusTitle"),
-  apiStatusDetail: document.querySelector("#apiStatusDetail")
+  apiStatusDetail: document.querySelector("#apiStatusDetail"),
+  imageLightbox: document.querySelector("#imageLightbox"),
+  imageLightboxTitle: document.querySelector("#imageLightboxTitle"),
+  imageLightboxSubtitle: document.querySelector("#imageLightboxSubtitle"),
+  imageLightboxGrid: document.querySelector("#imageLightboxGrid")
 };
 
 async function init() {
@@ -87,6 +108,73 @@ function loadApiConfig() {
   } catch {
     return { ...DEFAULT_API_CONFIG };
   }
+}
+
+function loadTaxonomy() {
+  const defaults = {
+    categories: [
+      createTaxonomyItem("Advocacia", "Sites para escritórios de advocacia", "category"),
+      createTaxonomyItem("Clínicas odontológicas", "Sites para clínicas e consultórios", "category"),
+      createTaxonomyItem("Restaurantes", "Sites para restaurantes, pizzarias e bares", "category"),
+      createTaxonomyItem("Portfólio", "Projetos institucionais e criativos", "category")
+    ],
+    tags: [
+      createTaxonomyItem("Landing Page", "", "tag"),
+      createTaxonomyItem("Institucional", "", "tag"),
+      createTaxonomyItem("Responsivo", "", "tag"),
+      createTaxonomyItem("Premium", "", "tag")
+    ]
+  };
+
+  try {
+    const raw = localStorage.getItem(TAXONOMY_STORAGE_KEY);
+    if (!raw) return defaults;
+
+    const saved = JSON.parse(raw);
+    return {
+      categories: normalizeTaxonomyList(saved.categories, "category"),
+      tags: normalizeTaxonomyList(saved.tags, "tag")
+    };
+  } catch {
+    return defaults;
+  }
+}
+
+function saveTaxonomy() {
+  localStorage.setItem(TAXONOMY_STORAGE_KEY, JSON.stringify(state.taxonomy));
+}
+
+function createTaxonomyItem(name, description = "", type = "tag") {
+  const cleanName = String(name || "").trim();
+  const now = new Date().toISOString();
+
+  return {
+    id: `${type}-${slugify(cleanName || "item")}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    name: cleanName,
+    slug: slugify(cleanName),
+    description: String(description || "").trim(),
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function normalizeTaxonomyList(list, type) {
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .map(item => {
+      const name = String(item?.name || item || "").trim();
+      if (!name) return null;
+      return {
+        id: item?.id || `${type}-${slugify(name)}-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        name,
+        slug: slugify(item?.slug || name),
+        description: String(item?.description || "").trim(),
+        createdAt: item?.createdAt || new Date().toISOString(),
+        updatedAt: item?.updatedAt || new Date().toISOString()
+      };
+    })
+    .filter(Boolean);
 }
 
 function saveApiConfig() {
@@ -148,6 +236,7 @@ function bindEvents() {
   });
 
   els.shortDescription.addEventListener("input", updateDescriptionCount);
+  els.tags.addEventListener("input", renderTagPicker);
 
   els.desktopImageFile.addEventListener("change", () => {
     handleImageUploadToApi(els.desktopImageFile, els.desktopImagePreview, "desktopImageUrl", "desktop");
@@ -172,7 +261,29 @@ function bindEvents() {
     renderListAndPreview();
   });
 
+  els.categoryManagerForm?.addEventListener("submit", handleCategorySubmit);
+  els.cancelCategoryEditBtn?.addEventListener("click", resetCategoryForm);
+  els.categoryList?.addEventListener("click", handleCategoryListClick);
+
+  els.tagManagerForm?.addEventListener("submit", handleTagSubmit);
+  els.cancelTagEditBtn?.addEventListener("click", resetTagForm);
+  els.tagList?.addEventListener("click", handleTagListClick);
+  els.tagPicker?.addEventListener("click", handleTagPickerClick);
+
   els.tableBody.addEventListener("click", handleTableClick);
+
+  els.imageLightbox?.addEventListener("click", event => {
+    if (event.target.closest('[data-action="close-images"]')) {
+      closeImageLightbox();
+    }
+  });
+
+  document.addEventListener("keydown", event => {
+    if (event.key === "Escape" && !els.imageLightbox?.hidden) {
+      closeImageLightbox();
+    }
+  });
+
   els.exportBtn.addEventListener("click", exportJson);
   els.importInput.addEventListener("change", importJson);
 }
@@ -484,6 +595,197 @@ function getInputByContractField(field) {
   return map[field];
 }
 
+
+function handleCategorySubmit(event) {
+  event.preventDefault();
+  clearFieldError("categoryName");
+
+  const name = els.categoryName.value.trim();
+  const description = els.categoryDescription.value.trim();
+  const editingId = els.categoryEditId.value;
+  const slug = slugify(name);
+  const duplicated = state.taxonomy.categories.some(category => category.slug === slug && category.id !== editingId);
+
+  if (!name || name.length < 2) {
+    showErrors([{ field: "categoryName", message: "Informe uma categoria com pelo menos 2 caracteres." }]);
+    return;
+  }
+
+  if (duplicated) {
+    showErrors([{ field: "categoryName", message: "Essa categoria já existe." }]);
+    return;
+  }
+
+  if (editingId) {
+    const category = state.taxonomy.categories.find(item => item.id === editingId);
+    if (category) {
+      category.name = name;
+      category.slug = slug;
+      category.description = description;
+      category.updatedAt = new Date().toISOString();
+    }
+    toast("Categoria atualizada.");
+  } else {
+    state.taxonomy.categories.push(createTaxonomyItem(name, description, "category"));
+    toast("Categoria cadastrada.");
+  }
+
+  state.taxonomy.categories = sortTaxonomy(state.taxonomy.categories);
+  saveTaxonomy();
+  resetCategoryForm();
+  render();
+  els.category.value = name;
+}
+
+function handleTagSubmit(event) {
+  event.preventDefault();
+  clearFieldError("tagName");
+
+  const name = els.tagName.value.trim();
+  const editingId = els.tagEditId.value;
+  const slug = slugify(name);
+  const duplicated = state.taxonomy.tags.some(tag => tag.slug === slug && tag.id !== editingId);
+
+  if (!name || name.length < 2) {
+    showErrors([{ field: "tagName", message: "Informe uma tag com pelo menos 2 caracteres." }]);
+    return;
+  }
+
+  if (duplicated) {
+    showErrors([{ field: "tagName", message: "Essa tag já existe." }]);
+    return;
+  }
+
+  if (editingId) {
+    const tag = state.taxonomy.tags.find(item => item.id === editingId);
+    if (tag) {
+      tag.name = name;
+      tag.slug = slug;
+      tag.updatedAt = new Date().toISOString();
+    }
+    toast("Tag atualizada.");
+  } else {
+    state.taxonomy.tags.push(createTaxonomyItem(name, "", "tag"));
+    toast("Tag cadastrada.");
+  }
+
+  state.taxonomy.tags = sortTaxonomy(state.taxonomy.tags);
+  saveTaxonomy();
+  resetTagForm();
+  render();
+  addTagToInput(name);
+}
+
+function handleCategoryListClick(event) {
+  const button = event.target.closest("button[data-taxonomy-action]");
+  if (!button) return;
+
+  const id = button.dataset.id;
+  const action = button.dataset.taxonomyAction;
+
+  if (action === "edit-category") {
+    const category = state.taxonomy.categories.find(item => item.id === id);
+    if (!category) return;
+
+    els.categoryEditId.value = category.id;
+    els.categoryName.value = category.name;
+    els.categoryDescription.value = category.description || "";
+    els.saveCategoryBtn.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">check</span>Atualizar categoria`;
+    els.cancelCategoryEditBtn.hidden = false;
+    els.categoryName.focus();
+  }
+
+  if (action === "delete-category") {
+    const category = state.taxonomy.categories.find(item => item.id === id);
+    if (!category) return;
+
+    const usageCount = state.items.filter(item => slugify(item.category) === category.slug).length;
+    const confirmed = confirm(usageCount
+      ? `Excluir a categoria "${category.name}"? Ela continuará nos ${usageCount} projeto(s) já cadastrados e pode aparecer nos filtros enquanto estiver em uso.`
+      : `Excluir a categoria "${category.name}"?`);
+
+    if (!confirmed) return;
+    state.taxonomy.categories = state.taxonomy.categories.filter(item => item.id !== id);
+    saveTaxonomy();
+    resetCategoryForm();
+    render();
+    toast("Categoria removida da lista de opções.");
+  }
+}
+
+function handleTagListClick(event) {
+  const button = event.target.closest("button[data-taxonomy-action]");
+  if (!button) return;
+
+  const id = button.dataset.id;
+  const action = button.dataset.taxonomyAction;
+
+  if (action === "edit-tag") {
+    const tag = state.taxonomy.tags.find(item => item.id === id);
+    if (!tag) return;
+
+    els.tagEditId.value = tag.id;
+    els.tagName.value = tag.name;
+    els.saveTagBtn.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">check</span>Atualizar tag`;
+    els.cancelTagEditBtn.hidden = false;
+    els.tagName.focus();
+  }
+
+  if (action === "delete-tag") {
+    const tag = state.taxonomy.tags.find(item => item.id === id);
+    if (!tag) return;
+
+    const usageCount = state.items.filter(item => item.tags.some(itemTag => slugify(itemTag) === tag.slug)).length;
+    const confirmed = confirm(usageCount
+      ? `Excluir a tag "${tag.name}"? Ela continuará nos ${usageCount} projeto(s) já cadastrados e pode aparecer como sugestão enquanto estiver em uso.`
+      : `Excluir a tag "${tag.name}"?`);
+
+    if (!confirmed) return;
+    state.taxonomy.tags = state.taxonomy.tags.filter(item => item.id !== id);
+    saveTaxonomy();
+    resetTagForm();
+    render();
+    toast("Tag removida da lista de opções.");
+  }
+}
+
+function handleTagPickerClick(event) {
+  const button = event.target.closest("button[data-tag]");
+  if (!button) return;
+
+  addTagToInput(button.dataset.tag);
+}
+
+function addTagToInput(tagName) {
+  const existing = parseTags(els.tags.value);
+  const alreadyAdded = existing.some(tag => slugify(tag) === slugify(tagName));
+
+  if (!alreadyAdded) {
+    existing.push(tagName);
+    els.tags.value = existing.join(", ");
+  }
+
+  renderTagPicker();
+}
+
+function resetCategoryForm() {
+  if (!els.categoryManagerForm) return;
+  els.categoryManagerForm.reset();
+  els.categoryEditId.value = "";
+  els.saveCategoryBtn.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">check</span>Salvar categoria`;
+  els.cancelCategoryEditBtn.hidden = true;
+  clearFieldError("categoryName");
+}
+
+function resetTagForm() {
+  if (!els.tagManagerForm) return;
+  els.tagManagerForm.reset();
+  els.tagEditId.value = "";
+  els.saveTagBtn.innerHTML = `<span class="material-symbols-rounded" aria-hidden="true">check</span>Salvar tag`;
+  els.cancelTagEditBtn.hidden = true;
+  clearFieldError("tagName");
+}
+
 async function handleTableClick(event) {
   const button = event.target.closest("button[data-action]");
   if (!button) return;
@@ -494,6 +796,7 @@ async function handleTableClick(event) {
   button.disabled = true;
 
   try {
+    if (action === "view-images") openImageLightbox(id);
     if (action === "edit") await editItem(id);
     if (action === "delete") await deleteItem(id);
     if (action === "duplicate") await duplicateItem(id);
@@ -670,6 +973,7 @@ function resetForm() {
 function render() {
   renderStats();
   renderCategories();
+  renderTaxonomy();
   renderListAndPreview();
 }
 
@@ -681,26 +985,171 @@ function renderStats() {
 }
 
 function renderCategories() {
-  const categories = [...new Set(state.items.map(item => item.category).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  const currentCategory = els.categoryFilter.value;
+  const categories = getAllCategoryNames();
+  const currentFilterCategory = els.categoryFilter.value;
+  const currentFormCategory = els.category.value || "Sem categoria";
 
   els.categoryFilter.innerHTML = `<option value="all">Todas</option>`;
-  els.categorySuggestions.innerHTML = "";
+  els.category.innerHTML = "";
 
   categories.forEach(category => {
-    const option = document.createElement("option");
-    option.value = category;
-    option.textContent = category;
-    els.categoryFilter.appendChild(option);
+    const filterOption = document.createElement("option");
+    filterOption.value = category;
+    filterOption.textContent = category;
+    els.categoryFilter.appendChild(filterOption);
 
-    const suggestion = document.createElement("option");
-    suggestion.value = category;
-    els.categorySuggestions.appendChild(suggestion);
+    const formOption = document.createElement("option");
+    formOption.value = category;
+    formOption.textContent = category;
+    els.category.appendChild(formOption);
   });
 
-  if (["all", ...categories].includes(currentCategory)) {
-    els.categoryFilter.value = currentCategory;
+  els.categoryFilter.value = ["all", ...categories].includes(currentFilterCategory) ? currentFilterCategory : "all";
+  els.category.value = categories.includes(currentFormCategory) ? currentFormCategory : "Sem categoria";
+}
+
+function syncTaxonomyWithProjects() {
+  let changed = false;
+  const categorySlugs = new Set(state.taxonomy.categories.map(category => category.slug));
+  const tagSlugs = new Set(state.taxonomy.tags.map(tag => tag.slug));
+
+  state.items.forEach(item => {
+    const categoryName = String(item.category || "Sem categoria").trim() || "Sem categoria";
+    const categorySlug = slugify(categoryName);
+
+    if (!categorySlugs.has(categorySlug)) {
+      state.taxonomy.categories.push(createTaxonomyItem(categoryName, "Criada a partir dos projetos cadastrados.", "category"));
+      categorySlugs.add(categorySlug);
+      changed = true;
+    }
+
+    item.tags.forEach(tagName => {
+      const tagSlug = slugify(tagName);
+      if (tagSlug && !tagSlugs.has(tagSlug)) {
+        state.taxonomy.tags.push(createTaxonomyItem(tagName, "", "tag"));
+        tagSlugs.add(tagSlug);
+        changed = true;
+      }
+    });
+  });
+
+  state.taxonomy.categories = sortTaxonomy(state.taxonomy.categories);
+  state.taxonomy.tags = sortTaxonomy(state.taxonomy.tags);
+
+  if (changed) saveTaxonomy();
+}
+
+function sortTaxonomy(list) {
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
+}
+
+function getAllCategoryNames() {
+  const names = new Set(["Sem categoria"]);
+  state.taxonomy.categories.forEach(category => names.add(category.name));
+  state.items.forEach(item => names.add(item.category || "Sem categoria"));
+
+  return [...names].sort((a, b) => {
+    if (a === "Sem categoria") return -1;
+    if (b === "Sem categoria") return 1;
+    return a.localeCompare(b, "pt-BR");
+  });
+}
+
+function getAllTagNames() {
+  const names = new Set();
+  state.taxonomy.tags.forEach(tag => names.add(tag.name));
+  state.items.forEach(item => item.tags.forEach(tag => names.add(tag)));
+  return [...names].sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+function renderTaxonomy() {
+  renderCategoryManager();
+  renderTagManager();
+  renderTagPicker();
+}
+
+function renderCategoryManager() {
+  if (!els.categoryList) return;
+
+  els.categoryCount.textContent = state.taxonomy.categories.length;
+
+  if (!state.taxonomy.categories.length) {
+    els.categoryList.innerHTML = renderTaxonomyEmpty("Nenhuma categoria cadastrada", "Crie categorias para padronizar os filtros do portfólio.");
+    return;
   }
+
+  els.categoryList.innerHTML = sortTaxonomy(state.taxonomy.categories).map(category => {
+    const usageCount = state.items.filter(item => slugify(item.category) === category.slug).length;
+    return `
+      <article class="taxonomy-item">
+        <div>
+          <strong>${escapeHtml(category.name)}</strong>
+          <small>${escapeHtml(category.description || "Sem descrição interna")} · ${usageCount} projeto(s)</small>
+        </div>
+        <div class="taxonomy-item-actions">
+          <button class="icon-button icon-only" type="button" title="Editar categoria" data-taxonomy-action="edit-category" data-id="${escapeAttribute(category.id)}"><span class="material-symbols-rounded" aria-hidden="true">edit</span></button>
+          <button class="icon-button icon-only delete" type="button" title="Excluir categoria" data-taxonomy-action="delete-category" data-id="${escapeAttribute(category.id)}"><span class="material-symbols-rounded" aria-hidden="true">delete</span></button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderTagManager() {
+  if (!els.tagList) return;
+
+  els.tagCount.textContent = state.taxonomy.tags.length;
+
+  if (!state.taxonomy.tags.length) {
+    els.tagList.innerHTML = renderTaxonomyEmpty("Nenhuma tag cadastrada", "Crie tags para usar nos projetos com um clique.");
+    return;
+  }
+
+  els.tagList.innerHTML = sortTaxonomy(state.taxonomy.tags).map(tag => {
+    const usageCount = state.items.filter(item => item.tags.some(itemTag => slugify(itemTag) === tag.slug)).length;
+    return `
+      <article class="taxonomy-item tag-taxonomy-item">
+        <div>
+          <strong>${escapeHtml(tag.name)}</strong>
+          <small>${usageCount} projeto(s)</small>
+        </div>
+        <div class="taxonomy-item-actions">
+          <button class="icon-button icon-only" type="button" title="Editar tag" data-taxonomy-action="edit-tag" data-id="${escapeAttribute(tag.id)}"><span class="material-symbols-rounded" aria-hidden="true">edit</span></button>
+          <button class="icon-button icon-only delete" type="button" title="Excluir tag" data-taxonomy-action="delete-tag" data-id="${escapeAttribute(tag.id)}"><span class="material-symbols-rounded" aria-hidden="true">delete</span></button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderTagPicker() {
+  if (!els.tagPicker) return;
+
+  const tags = getAllTagNames();
+
+  if (!tags.length) {
+    els.tagPicker.innerHTML = `<span class="tag-picker-empty">Nenhuma tag cadastrada ainda.</span>`;
+    return;
+  }
+
+  const selectedSlugs = new Set(parseTags(els.tags.value).map(tag => slugify(tag)));
+
+  els.tagPicker.innerHTML = tags.map(tag => {
+    const isActive = selectedSlugs.has(slugify(tag));
+    return `
+      <button class="tag-option ${isActive ? "active" : ""}" type="button" data-tag="${escapeAttribute(tag)}">${escapeHtml(tag)}</button>
+    `;
+  }).join("");
+}
+
+function renderTaxonomyEmpty(title, description) {
+  return `
+    <div class="taxonomy-empty">
+      <span class="material-symbols-rounded" aria-hidden="true">inventory_2</span>
+      <strong>${escapeHtml(title)}</strong>
+      <small>${escapeHtml(description)}</small>
+    </div>
+  `;
 }
 
 function renderListAndPreview() {
@@ -726,15 +1175,15 @@ function renderTable(items) {
 
     row.querySelector(".order-cell").innerHTML = `
       <div class="order-controls">
-        <button class="icon-button" type="button" title="Subir" data-action="move-up" data-id="${escapeAttribute(item.id)}" ${globalIndex === 0 ? "disabled" : ""}>↑</button>
+        <button class="icon-button icon-only" type="button" title="Subir" data-action="move-up" data-id="${escapeAttribute(item.id)}" ${globalIndex === 0 ? "disabled" : ""}><span class="material-symbols-rounded" aria-hidden="true">keyboard_arrow_up</span></button>
         <span class="order-number">${String(item.order).padStart(2, "0")}</span>
-        <button class="icon-button" type="button" title="Descer" data-action="move-down" data-id="${escapeAttribute(item.id)}" ${globalIndex === orderedAll.length - 1 ? "disabled" : ""}>↓</button>
+        <button class="icon-button icon-only" type="button" title="Descer" data-action="move-down" data-id="${escapeAttribute(item.id)}" ${globalIndex === orderedAll.length - 1 ? "disabled" : ""}><span class="material-symbols-rounded" aria-hidden="true">keyboard_arrow_down</span></button>
       </div>
     `;
 
     row.querySelector(".project-cell").innerHTML = `
       <div class="project-info">
-        ${renderThumb(item)}
+        ${renderProjectImages(item)}
         <div class="project-meta">
           <strong>${escapeHtml(item.title)}</strong>
           <small>${escapeHtml(item.slug)} · ${escapeHtml(item.shortDescription)}</small>
@@ -750,10 +1199,11 @@ function renderTable(items) {
 
     row.querySelector(".actions-cell").innerHTML = `
       <div class="actions">
-        <button class="icon-button edit" type="button" title="Editar" data-action="edit" data-id="${escapeAttribute(item.id)}">Editar</button>
-        <button class="icon-button" type="button" title="Duplicar" data-action="duplicate" data-id="${escapeAttribute(item.id)}">Duplicar</button>
-        <button class="icon-button" type="button" title="Arquivar/restaurar" data-action="archive" data-id="${escapeAttribute(item.id)}">${item.status === "archived" ? "Restaurar" : "Arquivar"}</button>
-        <button class="icon-button delete" type="button" title="Excluir lógico" data-action="delete" data-id="${escapeAttribute(item.id)}">Excluir</button>
+        <button class="icon-button" type="button" title="Visualizar imagens cadastradas" data-action="view-images" data-id="${escapeAttribute(item.id)}"><span class="material-symbols-rounded" aria-hidden="true">image</span>Imagens</button>
+        <button class="icon-button edit" type="button" title="Editar" data-action="edit" data-id="${escapeAttribute(item.id)}"><span class="material-symbols-rounded" aria-hidden="true">edit</span>Editar</button>
+        <button class="icon-button" type="button" title="Duplicar" data-action="duplicate" data-id="${escapeAttribute(item.id)}"><span class="material-symbols-rounded" aria-hidden="true">content_copy</span>Duplicar</button>
+        <button class="icon-button" type="button" title="Arquivar/restaurar" data-action="archive" data-id="${escapeAttribute(item.id)}"><span class="material-symbols-rounded" aria-hidden="true">${item.status === "archived" ? "unarchive" : "archive"}</span>${item.status === "archived" ? "Restaurar" : "Arquivar"}</button>
+        <button class="icon-button delete" type="button" title="Excluir lógico" data-action="delete" data-id="${escapeAttribute(item.id)}"><span class="material-symbols-rounded" aria-hidden="true">delete</span>Excluir</button>
       </div>
     `;
 
@@ -806,13 +1256,40 @@ function renderPreview() {
         <small>${String(index + 1).padStart(2, "0")} · ${escapeHtml(item.category)}</small>
         <h3>${escapeHtml(item.title)}</h3>
         <p>${escapeHtml(item.shortDescription)}</p>
-        <a href="${escapeAttribute(item.projectUrl)}" target="_blank" rel="noopener">Ver projeto ↗</a>
+        <a href="${escapeAttribute(item.projectUrl)}" target="_blank" rel="noopener">Ver projeto <span class="material-symbols-rounded" aria-hidden="true">open_in_new</span></a>
       </div>
     `;
     els.preview.appendChild(card);
   });
 }
 
+function renderProjectImages(item) {
+  return `
+    <button class="project-image-stack" type="button" data-action="view-images" data-id="${escapeAttribute(item.id)}" aria-label="Visualizar imagens de ${escapeAttribute(item.title)}">
+      ${renderMiniScreen(item.desktopImageUrl, item.altText, "desktop", "Desktop")}
+      ${renderMiniScreen(item.mobileImageUrl, item.altText, "mobile", "Mobile")}
+      <span class="project-image-zoom"><span class="material-symbols-rounded" aria-hidden="true">zoom_in</span>Ver</span>
+    </button>
+  `;
+}
+
+function renderMiniScreen(source, altText, type, label) {
+  if (!source) {
+    return `
+      <span class="project-screen ${type} empty">
+        <span>${type === "desktop" ? "D" : "M"}</span>
+        <small>${escapeHtml(label)}</small>
+      </span>
+    `;
+  }
+
+  return `
+    <span class="project-screen ${type}">
+      <img src="${escapeAttribute(source)}" alt="${escapeAttribute(altText || label)}" loading="lazy" />
+      <small>${escapeHtml(label)}</small>
+    </span>
+  `;
+}
 function renderThumb(item) {
   if (!item.desktopImageUrl) {
     return `<div class="project-thumb fallback">${escapeHtml(getInitials(item.title))}</div>`;
@@ -829,6 +1306,58 @@ function renderPreviewImage(item) {
   return `<img src="${escapeAttribute(item.desktopImageUrl)}" alt="${escapeAttribute(item.altText)}" />`;
 }
 
+function openImageLightbox(id) {
+  const item = state.items.find(project => project.id === id);
+  if (!item || !els.imageLightbox) return;
+
+  els.imageLightboxTitle.textContent = item.title;
+  els.imageLightboxSubtitle.textContent = `${item.category} · ${item.slug}`;
+  els.imageLightboxGrid.innerHTML = `
+    ${renderImageViewerPanel(item.desktopImageUrl, "desktop", "Imagem desktop", item.altText)}
+    ${renderImageViewerPanel(item.mobileImageUrl, "mobile", "Imagem mobile", item.altText)}
+  `;
+  els.imageLightbox.hidden = false;
+  document.body.classList.add("lightbox-open");
+}
+
+function closeImageLightbox() {
+  if (!els.imageLightbox) return;
+  els.imageLightbox.hidden = true;
+  els.imageLightboxGrid.innerHTML = "";
+  document.body.classList.remove("lightbox-open");
+}
+
+function renderImageViewerPanel(source, type, title, altText) {
+  if (!source) {
+    return `
+      <article class="image-viewer-panel ${type}">
+        <div class="image-viewer-title">
+          <strong>${escapeHtml(title)}</strong>
+          <small>${type === "desktop" ? "Formato horizontal" : "Formato vertical"}</small>
+        </div>
+        <div class="image-viewer-empty">
+          <strong>Sem imagem cadastrada</strong>
+          <small>Cadastre uma imagem ${type === "desktop" ? "desktop" : "mobile"} no formulário.</small>
+        </div>
+      </article>
+    `;
+  }
+
+  return `
+    <article class="image-viewer-panel ${type}">
+      <div class="image-viewer-title">
+        <strong>${escapeHtml(title)}</strong>
+        <small>${type === "desktop" ? "Preview horizontal do site" : "Preview vertical/mobile"}</small>
+      </div>
+      <a class="image-viewer-frame ${type}" href="${escapeAttribute(source)}" target="_blank" rel="noopener" title="Abrir imagem em nova aba">
+        <img src="${escapeAttribute(source)}" alt="${escapeAttribute(altText || title)}" />
+      </a>
+      <div class="image-viewer-actions">
+        <a class="ghost-button compact" href="${escapeAttribute(source)}" target="_blank" rel="noopener"><span class="material-symbols-rounded" aria-hidden="true">open_in_new</span>Abrir imagem</a>
+      </div>
+    </article>
+  `;
+}
 function getFilteredItems() {
   return getOrderedItems().filter(item => {
     const searchTarget = [
